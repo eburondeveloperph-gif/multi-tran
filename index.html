@@ -1,0 +1,1536 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Voice Translation Interface</title>
+    <style>
+        :root {
+            --bg-color-center: #1a1e26;
+            --bg-color-edge: #11131a;
+            --panel-bg: rgba(26, 30, 40, 0.6);
+            --panel-border: rgba(255, 255, 255, 0.08);
+            --text-main: #ffffff;
+            --text-muted: #b0b5c0;
+            --blue-glow-strong: #007bff;
+            --blue-glow-light: #00d4ff;
+            --red-glow-strong: #ff3b30;
+            --red-glow-dark: #b30000;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        }
+
+        body {
+            background: radial-gradient(circle at 50% 50%, var(--bg-color-center) 0%, var(--bg-color-edge) 100%);
+            color: var(--text-main);
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            position: relative;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        /* --- TOP BAR --- */
+        .top-bar {
+            display: flex;
+            justify-content: center;
+            gap: 120px;
+            padding: 30px;
+            width: 100%;
+            position: absolute;
+            top: 0;
+            z-index: 10;
+        }
+
+        .user-panel {
+            display: flex;
+            align-items: center;
+            background: var(--panel-bg);
+            border: 1px solid var(--panel-border);
+            border-radius: 6px;
+            padding: 10px 15px;
+            gap: 15px;
+            backdrop-filter: blur(10px);
+            width: 320px;
+            justify-content: space-between;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+            transition: all 0.3s ease;
+        }
+
+        .user-info {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .avatar-box {
+            width: 40px;
+            height: 28px;
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 4px;
+            border: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        .user-name {
+            font-size: 16px;
+            font-weight: 500;
+            color: #e5e7eb;
+            white-space: nowrap;
+        }
+
+        .lang-select-wrapper {
+            position: relative;
+            flex-shrink: 1;
+        }
+
+        .lang-select {
+            background: rgba(10, 12, 16, 0.4);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            color: var(--text-muted);
+            padding: 8px 30px 8px 12px;
+            border-radius: 4px;
+            appearance: none;
+            font-size: 14px;
+            outline: none;
+            cursor: pointer;
+            min-width: 130px;
+            max-width: 100%;
+            box-shadow: inset 0 1px 3px rgba(0,0,0,0.3);
+            transition: color 0.3s, text-shadow 0.3s;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            overflow: hidden;
+        }
+
+        .lang-select-wrapper::after {
+            content: '';
+            position: absolute;
+            right: 12px;
+            top: 50%;
+            transform: translateY(-30%);
+            border-left: 4px solid transparent;
+            border-right: 4px solid transparent;
+            border-top: 5px solid #8a91a1;
+            pointer-events: none;
+        }
+
+        /* --- CENTER STAGE --- */
+        .center-stage {
+            flex: 1;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            position: relative;
+            z-index: 1;
+        }
+
+        /* Waveform Elements */
+        .waveform-container {
+            position: absolute;
+            display: flex;
+            align-items: center;
+            justify-content: space-evenly; /* Better for mobile scaling */
+            width: 90%;
+            max-width: 600px;
+            height: 100px;
+            z-index: 1;
+            transition: opacity 0.5s ease, transform 0.5s ease;
+        }
+
+        .wave-bar {
+            width: 2px;
+            background: var(--blue-glow-light);
+            border-radius: 2px;
+            box-shadow: 0 0 8px 1px rgba(0, 212, 255, 0.6);
+            opacity: 0.6;
+            transition: height 0.2s ease, box-shadow 0.3s ease;
+        }
+
+        /* Particle Dust */
+        .particles {
+            position: absolute;
+            width: 100%;
+            max-width: 400px;
+            height: 200px;
+            z-index: 2;
+            pointer-events: none;
+            transition: opacity 0.5s ease;
+        }
+        
+        .particle {
+            position: absolute;
+            background: #00d4ff;
+            border-radius: 50%;
+            box-shadow: 0 0 5px #00d4ff;
+            opacity: 0;
+            animation: float 3s infinite ease-in-out;
+        }
+
+        @keyframes float {
+            0% { transform: translateY(0) scale(0.5); opacity: 0; }
+            50% { opacity: 0.8; }
+            100% { transform: translateY(-20px) scale(1); opacity: 0; }
+        }
+
+        /* The Main Orb */
+        .orb-wrapper {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%) scale(1);
+            z-index: 100;
+            transition: all 0.8s cubic-bezier(0.25, 1, 0.5, 1);
+        }
+
+        .orb-container {
+            position: relative;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            width: 140px;
+            height: 140px;
+            border-radius: 50%;
+            background: radial-gradient(circle at 50% 60%, #0055ff, #001a4d 70%);
+            box-shadow: 
+                0 0 50px 10px rgba(0, 110, 255, 0.4),
+                inset 0 0 20px rgba(0, 150, 255, 0.5),
+                inset 0 -20px 25px rgba(0, 212, 255, 0.9);
+            border: 2px solid rgba(0, 180, 255, 0.6);
+            cursor: pointer;
+            overflow: hidden;
+            transition: transform 0.2s, box-shadow 0.5s ease;
+        }
+
+        .orb-container:hover {
+            transform: scale(1.02);
+            box-shadow: 
+                0 0 60px 15px rgba(0, 110, 255, 0.5),
+                inset 0 0 20px rgba(0, 150, 255, 0.5),
+                inset 0 -25px 30px rgba(0, 212, 255, 1);
+        }
+
+        .orb-grid {
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background-image: 
+                linear-gradient(rgba(0, 150, 255, 0.15) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(0, 150, 255, 0.15) 1px, transparent 1px);
+            background-size: 20px 20px;
+            background-position: center;
+            border-radius: 50%;
+            mask-image: radial-gradient(circle at center, black 30%, transparent 70%);
+            -webkit-mask-image: radial-gradient(circle at center, black 30%, transparent 70%);
+            z-index: 1;
+            transform: scale(1.1);
+            transition: opacity 0.5s ease;
+        }
+
+        .orb-stars {
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            border-radius: 50%;
+            opacity: 0;
+            z-index: 1;
+            transition: opacity 0.8s ease;
+            background-image: 
+                radial-gradient(1.5px 1.5px at 20% 30%, #ffffff, transparent),
+                radial-gradient(2px 2px at 40% 70%, #00d4ff, transparent),
+                radial-gradient(1px 1px at 60% 20%, #ffffff, transparent),
+                radial-gradient(2.5px 2.5px at 80% 50%, #00d4ff, transparent),
+                radial-gradient(1.5px 1.5px at 30% 80%, #ffffff, transparent),
+                radial-gradient(2px 2px at 70% 80%, #ffffff, transparent),
+                radial-gradient(1px 1px at 50% 50%, #00d4ff, transparent),
+                radial-gradient(2px 2px at 85% 25%, #ffffff, transparent),
+                radial-gradient(1.5px 1.5px at 15% 60%, #00d4ff, transparent);
+            box-shadow: inset 0 0 40px rgba(0, 50, 200, 0.5);
+        }
+
+        .orb-reflection {
+            position: absolute;
+            top: 4%;
+            left: 10%;
+            width: 80%;
+            height: 35%;
+            background: linear-gradient(to bottom, rgba(255, 255, 255, 0.6), rgba(255, 255, 255, 0.1) 50%, transparent);
+            border-radius: 50% 50% 0 0 / 100% 100% 0 0;
+            z-index: 2;
+            pointer-events: none;
+        }
+
+        .orb-text {
+            position: relative;
+            z-index: 3;
+            font-size: 28px;
+            font-weight: 600;
+            color: #ffffff;
+            letter-spacing: 0.5px;
+            text-shadow: 0 2px 4px rgba(0, 0, 0, 0.6), 0 0 15px rgba(255, 255, 255, 0.5);
+            pointer-events: none;
+            transition: opacity 0.5s ease;
+        }
+
+        .orb-base-glow {
+            position: absolute;
+            bottom: -10px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 90px;
+            height: 20px;
+            background: var(--blue-glow-light);
+            filter: blur(15px);
+            border-radius: 50%;
+            z-index: 4;
+            opacity: 0.7;
+            pointer-events: none;
+            transition: opacity 0.5s ease, filter 0.5s ease;
+        }
+
+        /* --- LANGUAGE ROULETTE --- */
+        .roulette-container {
+            position: absolute;
+            top: 55%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 100%;
+            max-width: 400px;
+            height: 250px;
+            opacity: 0;
+            pointer-events: none;
+            transition: all 0.8s cubic-bezier(0.25, 1, 0.5, 1);
+            transition-delay: 0.2s;
+            z-index: 20;
+            -webkit-mask-image: linear-gradient(to bottom, transparent, black 25%, black 75%, transparent);
+            mask-image: linear-gradient(to bottom, transparent, black 25%, black 75%, transparent);
+        }
+
+        .roulette-highlight {
+            position: absolute;
+            top: 105px; /* (250 / 2) - (40 / 2) */
+            left: 0;
+            right: 0;
+            height: 40px;
+            border-top: 1px solid rgba(0, 212, 255, 0.4);
+            border-bottom: 1px solid rgba(0, 212, 255, 0.4);
+            background: linear-gradient(90deg, transparent, rgba(0, 212, 255, 0.15), transparent);
+            pointer-events: none;
+            z-index: 1;
+        }
+
+        .roulette-list {
+            list-style: none;
+            padding: 105px 0;
+            margin: 0;
+            height: 100%;
+            overflow-y: auto;
+            scroll-snap-type: y mandatory;
+            scrollbar-width: none;
+        }
+
+        .roulette-list::-webkit-scrollbar {
+            display: none;
+        }
+
+        .roulette-item {
+            height: 40px;
+            display: grid;
+            grid-template-columns: 80px 1fr 80px; 
+            align-items: center;
+            font-size: 18px;
+            color: #6b7280;
+            scroll-snap-align: center;
+            cursor: pointer;
+            user-select: none;
+        }
+
+        /* Elements inside Roulette Item */
+        .select-label {
+            justify-self: end;
+            font-size: 12px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: var(--blue-glow-light);
+            opacity: 0;
+            transform: translateX(-10px);
+            transition: all 0.3s ease;
+        }
+
+        .lang-name {
+            justify-self: center;
+            text-align: center;
+            white-space: nowrap;
+            transition: color 0.3s, font-size 0.3s, text-shadow 0.3s, transform 0.3s;
+        }
+
+        .check-btn {
+            justify-self: start;
+            width: 26px;
+            height: 26px;
+            border-radius: 50%;
+            background: rgba(0, 212, 255, 0.1);
+            border: 1px solid var(--blue-glow-light);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--blue-glow-light);
+            opacity: 0;
+            transform: translateX(10px);
+            pointer-events: none;
+            transition: all 0.3s ease;
+        }
+
+        .check-btn svg {
+            width: 14px;
+            height: 14px;
+        }
+
+        /* Roulette Selected State */
+        .roulette-item.selected .lang-name {
+            color: var(--blue-glow-light);
+            font-size: 26px;
+            font-weight: 600;
+            text-shadow: 0 0 15px rgba(0, 212, 255, 0.8);
+            transform: scale(1.05);
+        }
+
+        .roulette-item.selected .select-label {
+            opacity: 1;
+            transform: translateX(0);
+        }
+
+        .roulette-item.selected .check-btn {
+            opacity: 1;
+            transform: translateX(0);
+            pointer-events: auto;
+            animation: checkBreathe 1.2s infinite alternate ease-in-out;
+            box-shadow: 0 0 10px rgba(0, 212, 255, 0.5);
+        }
+
+        .roulette-item.selected .check-btn:hover {
+            background: rgba(0, 212, 255, 0.3);
+            color: #ffffff;
+        }
+
+        @keyframes checkBreathe {
+            0% { transform: scale(0.95); box-shadow: 0 0 5px rgba(0, 212, 255, 0.3); }
+            100% { transform: scale(1.15); box-shadow: 0 0 15px rgba(0, 212, 255, 0.8); }
+        }
+
+        /* --- ACTIVE STATE TRANSITIONS (Roulette Visible) --- */
+        body.active .orb-wrapper {
+            top: 55px;
+            transform: translate(-50%, -50%) scale(0.45);
+        }
+
+        body.active .orb-container {
+            box-shadow: 
+                0 0 70px 20px rgba(0, 110, 255, 0.7),
+                inset 0 0 30px rgba(0, 150, 255, 0.8),
+                inset 0 -30px 40px rgba(0, 212, 255, 1);
+        }
+
+        body.active .orb-text { opacity: 0; }
+        body.active .orb-grid { opacity: 0; }
+        body.active .orb-base-glow { opacity: 0.9; filter: blur(20px); }
+        body.active .orb-stars { opacity: 1; animation: slowSpin 15s linear infinite; }
+
+        body.active .waveform-container,
+        body.active .particles {
+            opacity: 0;
+            transform: scale(0.8);
+            pointer-events: none;
+        }
+
+        body.active .roulette-container {
+            opacity: 1;
+            pointer-events: auto;
+            top: 50%;
+        }
+
+        @keyframes slowSpin {
+            0% { transform: rotate(0deg) scale(1.1); }
+            50% { transform: rotate(180deg) scale(1.2); }
+            100% { transform: rotate(360deg) scale(1.1); }
+        }
+
+        /* --- LISTENING STATE TRANSITIONS (After Selection) --- */
+        body.listening .roulette-container {
+            opacity: 0;
+            pointer-events: none;
+            transform: translate(-50%, -60%);
+            transition: all 0.5s ease;
+        }
+
+        body.listening .waveform-container {
+            opacity: 1;
+            transform: translateY(35vh) scale(0.6);
+            transition: opacity 1s ease 0.3s, transform 1s ease 0.3s;
+            z-index: 0;
+        }
+
+        body.listening .particles {
+            opacity: 1;
+            transform: scale(1);
+            transition: opacity 1s ease 0.3s, transform 1s ease 0.3s;
+        }
+
+        /* Brighten the guest language to show it's actively listening */
+        body.listening #guestLangSelect {
+            color: var(--blue-glow-light);
+            text-shadow: 0 0 8px rgba(0, 212, 255, 0.6);
+            border-color: rgba(0, 212, 255, 0.4);
+        }
+
+        /* --- CHAT CONTAINER --- */
+        .chat-container {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.5s ease 0.3s;
+            padding: 100px 30px 120px 30px; /* space for top/bottom bars */
+            gap: 30px;
+            z-index: 5;
+        }
+
+        body.listening .chat-container {
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        .chat-pane {
+            flex: 1;
+            background: rgba(26, 30, 40, 0.6);
+            border: 1px solid var(--panel-border);
+            border-radius: 16px;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            backdrop-filter: blur(15px);
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+        }
+
+        .pane-header {
+            padding: 15px;
+            background: rgba(0, 0, 0, 0.3);
+            text-align: center;
+            font-weight: 600;
+            border-bottom: 1px solid var(--panel-border);
+            color: var(--blue-glow-light);
+            letter-spacing: 1px;
+            text-transform: uppercase;
+            font-size: 14px;
+        }
+
+        .chat-messages {
+            flex: 1;
+            padding: 20px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            scrollbar-width: thin;
+            scrollbar-color: rgba(255,255,255,0.2) transparent;
+        }
+
+        .chat-messages::-webkit-scrollbar {
+            width: 6px;
+        }
+        .chat-messages::-webkit-scrollbar-thumb {
+            background: rgba(255,255,255,0.2);
+            border-radius: 3px;
+        }
+
+        .chat-msg {
+            display: flex;
+            flex-direction: column;
+            max-width: 85%;
+            padding: 12px 16px;
+            border-radius: 12px;
+            font-size: 15px;
+            line-height: 1.4;
+            opacity: 0;
+            animation: fadeIn 0.3s ease forwards;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .chat-msg.self {
+            align-self: flex-end;
+            background: rgba(0, 123, 255, 0.15);
+            border: 1px solid rgba(0, 123, 255, 0.3);
+            border-bottom-right-radius: 4px;
+        }
+
+        .chat-msg.other {
+            align-self: flex-start;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-bottom-left-radius: 4px;
+        }
+
+        .msg-sender {
+            font-size: 12px;
+            font-weight: 600;
+            margin-bottom: 6px;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .msg-text {
+            color: #ffffff;
+            margin-bottom: 8px;
+            font-size: 16px;
+        }
+
+        .msg-translation {
+            font-size: 14px;
+            color: var(--blue-glow-light);
+            border-top: 1px solid rgba(0, 212, 255, 0.2);
+            padding-top: 8px;
+        }
+
+        .msg-original {
+            font-size: 13px;
+            color: #8a91a1;
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+            padding-top: 8px;
+            font-style: italic;
+        }
+
+        /* --- BOTTOM CONTROLS --- */
+        .bottom-bar {
+            position: absolute;
+            bottom: 40px;
+            width: 100%;
+            display: flex;
+            justify-content: center;
+            z-index: 10;
+        }
+
+        .controls-pill {
+            display: flex;
+            align-items: center;
+            background: rgba(22, 26, 35, 0.8);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 50px;
+            padding: 8px 12px;
+            gap: 12px;
+            backdrop-filter: blur(15px);
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+            transition: all 0.3s ease;
+        }
+
+        .icon-btn {
+            background: rgba(255, 255, 255, 0.04);
+            border: 1px solid transparent;
+            width: 42px;
+            height: 42px;
+            border-radius: 50%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            cursor: pointer;
+            color: #8a91a1;
+            transition: all 0.2s ease;
+        }
+
+        .icon-btn:hover {
+            background: rgba(255, 255, 255, 0.1);
+            color: #ffffff;
+        }
+
+        .icon-btn svg {
+            width: 18px;
+            height: 18px;
+            fill: currentColor;
+        }
+
+        /* Fully Rounded Mic Button */
+        .center-mic-btn {
+            background: linear-gradient(180deg, #0077ff, #0044cc);
+            border: 1px solid rgba(0, 180, 255, 0.5);
+            width: 56px;
+            height: 56px;
+            border-radius: 50%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            cursor: pointer;
+            box-shadow: 0 4px 15px rgba(0, 110, 255, 0.4), inset 0 2px 5px rgba(255,255,255,0.3);
+            color: #ffffff;
+            transition: transform 0.1s, box-shadow 0.3s, background 0.3s, border-color 0.3s;
+        }
+
+        .center-mic-btn:active {
+            transform: scale(0.95);
+        }
+
+        .center-mic-btn svg {
+            width: 22px;
+            height: 22px;
+            fill: currentColor;
+        }
+
+        /* Red Active Listening Mic */
+        body.listening .center-mic-btn {
+            background: linear-gradient(180deg, var(--red-glow-strong), var(--red-glow-dark));
+            border-color: rgba(255, 59, 48, 0.6);
+            animation: micBreatheRed 1.5s infinite alternate ease-in-out;
+            box-shadow: 0 0 15px rgba(255, 59, 48, 0.5);
+        }
+
+        @keyframes micBreatheRed {
+            0% { transform: scale(1); box-shadow: 0 0 10px 2px rgba(255, 59, 48, 0.4), inset 0 2px 5px rgba(255,255,255,0.3); }
+            100% { transform: scale(1.15); box-shadow: 0 0 30px 10px rgba(255, 59, 48, 0.8), inset 0 2px 10px rgba(255,255,255,0.6); }
+        }
+
+        /* --- MOBILE RESPONSIVENESS --- */
+        @media (max-width: 768px) {
+            .chat-container {
+                flex-direction: column;
+                padding: 90px 15px 100px 15px;
+                gap: 15px;
+            }
+            .chat-pane {
+                flex: 1;
+            }
+            .pane-header {
+                padding: 10px;
+                font-size: 12px;
+            }
+            .chat-messages {
+                padding: 15px;
+                gap: 10px;
+            }
+            .chat-msg {
+                font-size: 14px;
+                padding: 10px 14px;
+            }
+            .msg-text {
+                font-size: 15px;
+            }
+            .msg-translation, .msg-original {
+                font-size: 13px;
+            }
+
+            .top-bar {
+                padding: 15px 20px;
+                gap: 0;
+                justify-content: space-between;
+            }
+            .user-panel {
+                width: calc(50% - 35px); /* Space for the scaled down orb */
+                min-width: 120px;
+                padding: 8px;
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 6px;
+            }
+            .user-info {
+                gap: 8px;
+            }
+            .avatar-box {
+                width: 20px;
+                height: 20px;
+            }
+            .user-name {
+                font-size: 14px;
+            }
+            .lang-select-wrapper {
+                width: 100%;
+            }
+            .lang-select {
+                width: 100%;
+                min-width: unset;
+                padding: 6px 20px 6px 10px;
+                font-size: 13px;
+            }
+
+            .orb-wrapper {
+                transform: translate(-50%, -50%) scale(0.85);
+            }
+
+            body.active .orb-wrapper {
+                top: 52px;
+                transform: translate(-50%, -50%) scale(0.35);
+            }
+
+            .roulette-container {
+                padding: 0 10px;
+            }
+
+            .roulette-item {
+                grid-template-columns: 70px 1fr 70px;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .top-bar {
+                padding: 15px 10px;
+            }
+            .user-panel {
+                width: calc(50% - 30px);
+                padding: 8px 6px;
+            }
+            .user-name {
+                font-size: 12px;
+            }
+            .lang-select {
+                font-size: 11px;
+                padding: 4px 16px 4px 6px;
+            }
+            
+            .roulette-item {
+                grid-template-columns: 60px 1fr 60px;
+                font-size: 16px;
+            }
+            .roulette-item.selected .lang-name {
+                font-size: 22px;
+            }
+            .select-label {
+                font-size: 10px;
+            }
+
+            .bottom-bar {
+                bottom: 25px;
+            }
+            .controls-pill {
+                padding: 6px 10px;
+                gap: 8px;
+            }
+            .icon-btn {
+                width: 38px;
+                height: 38px;
+            }
+            .icon-btn svg {
+                width: 16px;
+                height: 16px;
+            }
+            .center-mic-btn {
+                width: 50px;
+                height: 50px;
+            }
+        }
+
+    </style>
+</head>
+<body>
+
+    <!-- Top Panels -->
+    <header class="top-bar">
+        <div class="user-panel">
+            <div class="user-info">
+                <div class="avatar-box"></div>
+                <span class="user-name">The Staff</span>
+            </div>
+            <div class="lang-select-wrapper">
+                <select class="lang-select" id="staffLangSelect">
+                    <option value="dutch-flemish" selected>Dutch Flemish</option>
+                    <option value="english">English</option>
+                    <option value="spanish">Spanish</option>
+                    <option value="french">French</option>
+                    <option value="german">German</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="user-panel">
+            <div class="user-info">
+                <div class="avatar-box"></div>
+                <span class="user-name">Guest</span>
+            </div>
+            <div class="lang-select-wrapper">
+                <select class="lang-select" id="guestLangSelect">
+                    <option value="auto">Auto Detect...</option>
+                    <!-- JavaScript will inject additional language options here -->
+                </select>
+            </div>
+        </div>
+    </header>
+
+    <!-- Absolute Orb Wrapper -->
+    <div class="orb-wrapper" id="orbWrapper">
+        <div class="orb-container" id="mainOrb">
+            <div class="orb-grid"></div>
+            <div class="orb-stars"></div>
+            <div class="orb-reflection"></div>
+            <span class="orb-text">Start</span>
+        </div>
+        <div class="orb-base-glow"></div>
+    </div>
+
+    <!-- Center Stage -->
+    <main class="center-stage">
+        <div class="waveform-container" id="waveform">
+            <!-- Bars generated via JS -->
+        </div>
+
+        <div class="particles" id="particles">
+            <!-- Particles generated via JS -->
+        </div>
+
+        <!-- Language Roulette (Hidden initially) -->
+        <div class="roulette-container">
+            <div class="roulette-highlight"></div>
+            <ul class="roulette-list" id="langRoulette">
+                <!-- Items generated via JS -->
+            </ul>
+        </div>
+
+        <!-- Chat Container -->
+        <div class="chat-container" id="chatContainer">
+            <div class="chat-pane staff-pane">
+                <div class="pane-header">Staff Area</div>
+                <div class="chat-messages" id="staffMessages"></div>
+            </div>
+            <div class="chat-pane guest-pane">
+                <div class="pane-header">Guest Portal</div>
+                <div class="chat-messages" id="guestMessages"></div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Bottom Controls -->
+    <footer class="bottom-bar">
+        <div class="controls-pill">
+            
+            <button class="icon-btn" aria-label="Volume">
+                <svg viewBox="0 0 24 24">
+                    <path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/>
+                </svg>
+            </button>
+
+            <!-- History Icon -->
+            <button class="icon-btn" aria-label="History">
+                <svg viewBox="0 0 24 24">
+                    <path d="M13,3c-4.97,0-9,4.03-9,9H1l3.89,3.89l0.07,0.14L9,12H6c0-3.87,3.13-7,7-7s7,3.13,7,7s-3.13,7-7,7 c-1.93,0-3.68-0.79-4.94-2.06l-1.42,1.42C8.27,19.99,10.51,21,13,21c4.97,0,9-4.03,9-9S17.97,3,13,3z M12,8v5l4.28,2.54 l0.72-1.21l-3.5-2.08V8H12z"/>
+                </svg>
+            </button>
+
+            <button class="center-mic-btn" aria-label="Main Action">
+                <svg viewBox="0 0 24 24">
+                    <path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm5-3c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/>
+                </svg>
+            </button>
+
+            <button class="icon-btn" aria-label="Translate">
+                <svg viewBox="0 0 24 24">
+                    <path d="M12.87 15.07l-2.54-2.51.03-.03c1.74-1.94 2.98-4.17 3.71-6.53H17V4h-7V2H8v2H1v2h11.17C11.5 7.92 10.44 9.75 9 11.35 8.07 10.32 7.3 9.19 6.69 8h-2c.73 1.63 1.73 3.17 2.98 4.56l-5.09 5.02L4 19l5-5 3.11 3.11.76-2.04zM18.5 10h-2L12 22h2l1.12-3h4.75L21 22h2l-4.5-12zm-2.62 7l1.62-4.33L19.12 17h-3.24z"/>
+                </svg>
+            </button>
+
+            <button class="icon-btn" aria-label="Settings">
+                <svg viewBox="0 0 24 24">
+                    <path d="M19.14,12.94c0.04-0.3,0.06-0.61,0.06-0.94c0-0.32-0.02-0.64-0.06-0.94l2.03-1.58c0.18-0.14,0.23-0.41,0.12-0.61 l-1.92-3.32c-0.12-0.22-0.37-0.29-0.59-0.22l-2.39,0.96c-0.5-0.38-1.03-0.7-1.62-0.94L14.4,2.81c-0.04-0.24-0.24-0.41-0.48-0.41 h-3.84c-0.24,0-0.43,0.17-0.47,0.41L9.25,5.35C8.66,5.59,8.12,5.92,7.63,6.29L5.24,5.33c-0.22-0.08-0.47,0-0.59,0.22L2.73,8.87 C2.62,9.08,2.66,9.34,2.86,9.48l2.03,1.58C4.84,11.36,4.8,11.69,4.8,12s0.02,0.64,0.06,0.94l-2.03,1.58 c-0.18,0.14-0.23,0.41-0.12,0.61l1.92,3.32c0.12,0.22,0.37,0.29,0.59,0.22l2.39-0.96c0.5,0.38,1.03,0.7,1.62,0.94l0.36,2.54 c0.05,0.24,0.24,0.41,0.48,0.41h3.84c0.24,0,0.43-0.17,0.47-0.41l0.36-2.54c0.59-0.24,1.13-0.56,1.62-0.94l2.39,0.96 c0.22,0.08,0.47,0,0.59-0.22l1.92-3.32c0.12-0.22,0.07-0.49-0.12-0.61L19.14,12.94z M12,15.6c-1.98,0-3.6-1.62-3.6-3.6 s1.62-3.6,3.6-3.6s3.6,1.62,3.6,3.6S13.98,15.6,12,15.6z"/>
+                </svg>
+            </button>
+
+        </div>
+    </footer>
+
+    <script type="module">
+        import { GoogleGenAI, Modality } from "@google/genai";
+
+        // ==========================================
+        // CONFIGURATION
+        // ==========================================
+        const GEMINI_API_KEY = process.env.GEMINI_API_KEY; // Eburon (Translation & Live Audio)
+
+        // ==========================================
+        // APP STATE
+        // ==========================================
+        let audioContext;
+        let mediaStream;
+        let sourceNode;
+        let processorNode;
+        let playbackContext;
+        let nextAudioStartTime = 0;
+        let liveSession = null;
+        let ai = null;
+        
+        let currentMode = 'none'; // 'none', 'speaking', 'listening'
+
+        // ==========================================
+        // SAMPLE CONVERSATION DATA
+        // ==========================================
+        const sampleConversation = [
+            {
+                speaker: 'guest',
+                original: "Hi, I have had a sore throat since yesterday and it hurts when I swallow.",
+                translated: "Hallo, ik heb sinds gisteren keelpijn en het doet pijn wanneer ik slik."
+            },
+            {
+                speaker: 'staff',
+                original: "Hebt u ook koorts of last van hoesten?",
+                translated: "Do you also have a fever or a cough?"
+            },
+            {
+                speaker: 'guest',
+                original: "I do not have a fever, but I have been coughing a little during the night.",
+                translated: "Ik heb geen koorts, maar ik heb 's nachts wel een beetje gehoest."
+            },
+            {
+                speaker: 'staff',
+                original: "Gebruikt u momenteel andere medicatie of hebt u allergieën?",
+                translated: "Are you currently taking any other medication, or do you have any allergies?"
+            },
+            {
+                speaker: 'guest',
+                original: "I am not taking any medication right now, and I do not have any allergies that I know of.",
+                translated: "Ik neem momenteel geen medicatie en ik heb geen allergieën voor zover ik weet."
+            },
+            {
+                speaker: 'staff',
+                original: "Dan kan ik u een verzachtende keelsiroop en zuigtabletten aanraden.",
+                translated: "In that case, I can recommend a soothing throat syrup and lozenges."
+            },
+            {
+                speaker: 'guest',
+                original: "How often should I take them, and is it okay before going to sleep?",
+                translated: "Hoe vaak moet ik die nemen, en is dat in orde voor het slapengaan?"
+            },
+            {
+                speaker: 'staff',
+                original: "Ja, dat is in orde. Neem de siroop drie keer per dag en gebruik de zuigtabletten volgens de bijsluiter.",
+                translated: "Yes, that is fine. Take the syrup three times a day and use the lozenges according to the leaflet."
+            },
+            {
+                speaker: 'guest',
+                original: "Thank you. If it gets worse after a few days, should I see a doctor?",
+                translated: "Dank u. Als het na een paar dagen erger wordt, moet ik dan een dokter raadplegen?"
+            },
+            {
+                speaker: 'staff',
+                original: "Ja, zeker. Als u koorts krijgt of het slikken moeilijker wordt, neemt u best contact op met een arts.",
+                translated: "Yes, definitely. If you develop a fever or swallowing becomes more difficult, it is best to contact a doctor."
+            }
+        ];
+
+        function renderSampleConversation() {
+            const staffMessages = document.getElementById('staffMessages');
+            const guestMessages = document.getElementById('guestMessages');
+            
+            staffMessages.innerHTML = '';
+            guestMessages.innerHTML = '';
+
+            sampleConversation.forEach((turn, index) => {
+                // Add staggered animation delay
+                const delay = index * 0.1;
+                
+                // Staff Pane
+                const staffMsg = document.createElement('div');
+                if (turn.speaker === 'staff') {
+                    staffMsg.className = 'chat-msg self';
+                    staffMsg.style.animationDelay = `${delay}s`;
+                    staffMsg.innerHTML = `
+                        <div class="msg-sender">You</div>
+                        <div class="msg-text">${turn.original}</div>
+                        <div class="msg-translation">Translation: ${turn.translated}</div>
+                    `;
+                } else {
+                    staffMsg.className = 'chat-msg other';
+                    staffMsg.style.animationDelay = `${delay}s`;
+                    staffMsg.innerHTML = `
+                        <div class="msg-sender">Guest</div>
+                        <div class="msg-text">${turn.translated}</div>
+                        <div class="msg-original">Original: ${turn.original}</div>
+                    `;
+                }
+                staffMessages.appendChild(staffMsg);
+
+                // Guest Pane
+                const guestMsg = document.createElement('div');
+                if (turn.speaker === 'guest') {
+                    guestMsg.className = 'chat-msg self';
+                    guestMsg.style.animationDelay = `${delay}s`;
+                    guestMsg.innerHTML = `
+                        <div class="msg-sender">You</div>
+                        <div class="msg-text">${turn.original}</div>
+                        <div class="msg-translation">Translation: ${turn.translated}</div>
+                    `;
+                } else {
+                    guestMsg.className = 'chat-msg other';
+                    guestMsg.style.animationDelay = `${delay}s`;
+                    guestMsg.innerHTML = `
+                        <div class="msg-sender">Staff</div>
+                        <div class="msg-text">${turn.translated}</div>
+                        <div class="msg-original">Original: ${turn.original}</div>
+                    `;
+                }
+                guestMessages.appendChild(guestMsg);
+            });
+            
+            // Scroll to bottom
+            setTimeout(() => {
+                staffMessages.scrollTop = staffMessages.scrollHeight;
+                guestMessages.scrollTop = guestMessages.scrollHeight;
+            }, 100);
+        }
+
+        // ==========================================
+        // GEMINI LIVE AUDIO PIPELINE
+        // ==========================================
+        async function ensureAudioContext() {
+            if (!playbackContext) {
+                playbackContext = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 24000 });
+                nextAudioStartTime = playbackContext.currentTime;
+            }
+            if (playbackContext.state === 'suspended') {
+                await playbackContext.resume();
+            }
+        }
+
+        function playAudioChunk(base64Data) {
+            if (!playbackContext) return;
+            
+            const binaryString = window.atob(base64Data);
+            const bytes = new Uint8Array(binaryString.length);
+            for (let i = 0; i < binaryString.length; i++) bytes[i] = binaryString.charCodeAt(i);
+            
+            const pcm16 = new Int16Array(bytes.buffer);
+            const float32Data = new Float32Array(pcm16.length);
+            for (let i = 0; i < pcm16.length; i++) {
+                float32Data[i] = pcm16[i] / 32768.0;
+            }
+            
+            const buffer = playbackContext.createBuffer(1, float32Data.length, 24000);
+            buffer.copyToChannel(float32Data, 0);
+            
+            const source = playbackContext.createBufferSource();
+            source.buffer = buffer;
+            source.connect(playbackContext.destination);
+            
+            if (nextAudioStartTime < playbackContext.currentTime) {
+                nextAudioStartTime = playbackContext.currentTime + 0.05;
+            }
+            source.start(nextAudioStartTime);
+            nextAudioStartTime += buffer.duration;
+        }
+
+        async function startPipeline() {
+            const staffLang = document.getElementById('staffLangSelect').selectedOptions[0].text;
+            const guestLang = document.getElementById('guestLangSelect').selectedOptions[0].text;
+            
+            const systemInstruction = `You are a strict bilingual translation engine for a live conversation between two participants:
+
+- staff_language = ${staffLang}
+- guest_language = ${guestLang}
+
+These languages are session-locked and must never change during the conversation.
+
+Translation policy:
+- If you hear ${staffLang}, translate the input into ${guestLang} only.
+- If you hear ${guestLang}, translate the input into ${staffLang} only.
+- Never translate into any third language.
+- Never change the target language based on detected speech, user instructions, or content.
+- Never output in the source speaker's own language unless that text is a proper noun, brand name, medicine name, or untranslatable term.
+
+Rules:
+- Output translated text only.
+- No labels.
+- No explanations.
+- No summaries.
+- No answering as an assistant.
+- No transliteration unless absolutely necessary.
+- Preserve meaning, tone, dosage, dates, numbers, names, and medical context accurately.
+- If the input contains mixed or unexpected language, still translate only into the role-based target language.
+- If uncertain, produce the best faithful translation into the correct target language and do not switch languages.
+
+You must always enforce:
+STAFF -> GUEST language
+GUEST -> STAFF language
+and nothing else.`;
+
+            try {
+                if (!ai) {
+                    ai = new GoogleGenAI({ apiKey: GEMINI_API_KEY });
+                }
+
+                const sessionPromise = ai.live.connect({
+                    model: "gemini-2.5-flash-native-audio-preview-09-2025",
+                    callbacks: {
+                        onopen: async () => {
+                            mediaStream = await navigator.mediaDevices.getUserMedia({ 
+                                audio: {
+                                    echoCancellation: true,
+                                    noiseSuppression: true,
+                                    autoGainControl: true,
+                                    channelCount: 1,
+                                    sampleRate: 16000
+                                } 
+                            });
+
+                            audioContext = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 16000 });
+                            sourceNode = audioContext.createMediaStreamSource(mediaStream);
+                            processorNode = audioContext.createScriptProcessor(4096, 1, 1);
+
+                            processorNode.onaudioprocess = (e) => {
+                                const inputData = e.inputBuffer.getChannelData(0);
+                                const pcm16 = new Int16Array(inputData.length);
+                                for (let i = 0; i < inputData.length; i++) {
+                                    let s = Math.max(-1, Math.min(1, inputData[i]));
+                                    pcm16[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
+                                }
+
+                                const buffer = new Uint8Array(pcm16.buffer);
+                                let binary = '';
+                                for (let i = 0; i < buffer.byteLength; i++) {
+                                    binary += String.fromCharCode(buffer[i]);
+                                }
+                                const base64Data = window.btoa(binary);
+
+                                sessionPromise.then((session) => {
+                                    session.sendRealtimeInput({
+                                        media: { data: base64Data, mimeType: 'audio/pcm;rate=16000' }
+                                    });
+                                });
+                            };
+
+                            sourceNode.connect(processorNode);
+                            processorNode.connect(audioContext.destination);
+                        },
+                        onmessage: async (message) => {
+                            // Handle audio output
+                            const base64Audio = message.serverContent?.modelTurn?.parts[0]?.inlineData?.data;
+                            if (base64Audio) {
+                                playAudioChunk(base64Audio);
+                            }
+
+                            // Handle interruption
+                            if (message.serverContent?.interrupted) {
+                                nextAudioStartTime = 0;
+                            }
+                            
+                            // Handle transcription (optional, could be added to UI)
+                            // if (message.serverContent?.modelTurn?.parts[0]?.text) {
+                            //     console.log("Gemini:", message.serverContent.modelTurn.parts[0].text);
+                            // }
+                        },
+                        onerror: (err) => {
+                            console.error("Live API Error:", err);
+                        },
+                        onclose: () => {
+                            console.log("Live API Closed");
+                        }
+                    },
+                    config: {
+                        responseModalities: [Modality.AUDIO],
+                        speechConfig: {
+                            voiceConfig: { prebuiltVoiceConfig: { voiceName: "Zephyr" } }
+                        },
+                        systemInstruction: systemInstruction,
+                    }
+                });
+
+                liveSession = await sessionPromise;
+
+            } catch (err) {
+                console.error(err);
+                if (err.name === 'NotAllowedError') {
+                    alert("Microphone access was denied. Please allow microphone permissions in your browser to use this feature.");
+                } else if (err.name === 'NotFoundError') {
+                    alert("No microphone was detected. Please connect a microphone.");
+                }
+                stopPipeline();
+            }
+        }
+
+        function stopPipeline() {
+            if (processorNode) {
+                processorNode.disconnect();
+                processorNode = null;
+            }
+            if (sourceNode) {
+                sourceNode.disconnect();
+                sourceNode = null;
+            }
+            if (mediaStream) {
+                mediaStream.getTracks().forEach(track => track.stop());
+                mediaStream = null;
+            }
+            if (audioContext) {
+                audioContext.close();
+                audioContext = null;
+            }
+            if (liveSession) {
+                liveSession.close();
+                liveSession = null;
+            }
+            currentMode = 'none';
+        }
+
+        document.addEventListener("DOMContentLoaded", () => {
+            
+            // 1. Generate Waveform Bars dynamically adapted for flex space-evenly
+            const waveform = document.getElementById('waveform');
+            const numBars = window.innerWidth > 480 ? 80 : 50; // Adjust for mobile
+            
+            for (let i = 0; i < numBars; i++) {
+                const bar = document.createElement('div');
+                bar.classList.add('wave-bar');
+                const distFromCenter = Math.abs((numBars / 2) - i) / (numBars / 2);
+                const intensity = 1 - distFromCenter;
+                const height = Math.max(3, (intensity * 40) + (Math.random() * 8));
+                bar.style.height = `${height}px`;
+                bar.style.opacity = Math.max(0.1, intensity * 0.8);
+                bar.style.animation = `pulse ${1 + Math.random()}s infinite alternate`;
+                bar.style.animationDelay = `${Math.random() * 2}s`;
+                waveform.appendChild(bar);
+            }
+
+            const style = document.createElement('style');
+            style.innerHTML = `@keyframes pulse { 0% { transform: scaleY(0.8); } 100% { transform: scaleY(1.2); } }`;
+            document.head.appendChild(style);
+
+            // 2. Generate Floating Particles
+            const particlesContainer = document.getElementById('particles');
+            for (let i = 0; i < 40; i++) {
+                const particle = document.createElement('div');
+                particle.classList.add('particle');
+                particle.style.left = `${Math.random() * 100}%`;
+                particle.style.top = `${Math.random() * 100}%`;
+                const size = Math.random() * 3 + 1;
+                particle.style.width = `${size}px`;
+                particle.style.height = `${size}px`;
+                particle.style.animationDuration = `${2 + Math.random() * 3}s`;
+                particle.style.animationDelay = `${Math.random() * 3}s`;
+                particlesContainer.appendChild(particle);
+            }
+
+            // 3. Audio Context Setup for Synth Effects
+            let audioCtx = null;
+            function initAudio() {
+                if (!audioCtx) {
+                    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                }
+                if (audioCtx.state === 'suspended') {
+                    audioCtx.resume();
+                }
+            }
+
+            // Simple tick sound when scrolling
+            function playTick() {
+                if (!audioCtx || audioCtx.state !== 'running') return;
+                const osc = audioCtx.createOscillator();
+                const gainNode = audioCtx.createGain();
+                osc.connect(gainNode);
+                gainNode.connect(audioCtx.destination);
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(600, audioCtx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(100, audioCtx.currentTime + 0.03);
+                gainNode.gain.setValueAtTime(0.15, audioCtx.currentTime);
+                gainNode.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.03);
+                osc.start(audioCtx.currentTime);
+                osc.stop(audioCtx.currentTime + 0.03);
+            }
+
+            // Success chime when language is selected
+            function playChime() {
+                if (!audioCtx || audioCtx.state !== 'running') return;
+                const now = audioCtx.currentTime;
+                
+                // First note (E5)
+                const osc1 = audioCtx.createOscillator();
+                const gain1 = audioCtx.createGain();
+                osc1.connect(gain1);
+                gain1.connect(audioCtx.destination);
+                osc1.type = 'sine';
+                osc1.frequency.setValueAtTime(659.25, now);
+                gain1.gain.setValueAtTime(0, now);
+                gain1.gain.linearRampToValueAtTime(0.1, now + 0.02);
+                gain1.gain.exponentialRampToValueAtTime(0.001, now + 0.15);
+                osc1.start(now);
+                osc1.stop(now + 0.15);
+
+                // Second note (G#5)
+                const osc2 = audioCtx.createOscillator();
+                const gain2 = audioCtx.createGain();
+                osc2.connect(gain2);
+                gain2.connect(audioCtx.destination);
+                osc2.type = 'sine';
+                osc2.frequency.setValueAtTime(830.61, now + 0.1);
+                gain2.gain.setValueAtTime(0, now + 0.1);
+                gain2.gain.linearRampToValueAtTime(0.1, now + 0.12);
+                gain2.gain.exponentialRampToValueAtTime(0.001, now + 0.5);
+                osc2.start(now + 0.1);
+                osc2.stop(now + 0.5);
+            }
+
+            // 4. Populate Language Roulette & Sync with Guest Dropdown
+            const languages =[
+                "English", "Spanish", "French", "German", "Mandarin", 
+                "Japanese", "Korean", "Italian", "Portuguese", "Russian", 
+                "Arabic", "Hindi", "Bengali", "Turkish", "Vietnamese", 
+                "Thai", "Dutch Flemish", "Greek", "Swedish", "Polish"
+            ];
+            
+            const rouletteList = document.getElementById('langRoulette');
+            const guestLangSelect = document.getElementById('guestLangSelect');
+
+            languages.forEach(lang => {
+                // Populate Dropdown
+                const option = document.createElement('option');
+                option.value = lang.toLowerCase().replace(' ', '-');
+                option.textContent = lang;
+                guestLangSelect.appendChild(option);
+
+                // Populate Roulette Item Grid
+                const li = document.createElement('li');
+                li.classList.add('roulette-item');
+                
+                const selectLabel = document.createElement('span');
+                selectLabel.classList.add('select-label');
+                selectLabel.textContent = "Select";
+
+                const langName = document.createElement('span');
+                langName.classList.add('lang-name');
+                langName.textContent = lang;
+
+                const checkBtn = document.createElement('div');
+                checkBtn.classList.add('check-btn');
+                checkBtn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>`;
+
+                li.appendChild(selectLabel);
+                li.appendChild(langName);
+                li.appendChild(checkBtn);
+                
+                // Allow tapping item name to center it
+                li.addEventListener('click', () => {
+                    li.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    syncGuestLanguage(lang);
+                });
+
+                // Tapping the check button locks in the selection
+                checkBtn.addEventListener('click', (e) => {
+                    e.stopPropagation(); // prevent triggering the li click
+                    confirmSelection(lang);
+                });
+                
+                rouletteList.appendChild(li);
+            });
+
+            // Helper to sync roulette selection to Guest dropdown
+            function syncGuestLanguage(langText) {
+                for (let i = 0; i < guestLangSelect.options.length; i++) {
+                    if (guestLangSelect.options[i].text === langText) {
+                        guestLangSelect.selectedIndex = i;
+                        break;
+                    }
+                }
+            }
+
+            // Handle Check Button Tap
+            function confirmSelection(lang) {
+                playChime();
+                syncGuestLanguage(lang);
+                
+                // Transition to listening state
+                document.body.classList.add('listening');
+                
+                // Render the sample conversation for demonstration
+                renderSampleConversation();
+                
+                // Start the pipeline when a language is selected
+                ensureAudioContext().then(() => {
+                    startPipeline();
+                });
+            }
+
+            // 5. Roulette Scroll Interaction
+            let lastSelectedIndex = -1;
+            let isSelecting = false;
+
+            const updateRouletteSelection = () => {
+                // Disable scroll updates if already locked in
+                if (document.body.classList.contains('listening')) return;
+
+                const items = rouletteList.querySelectorAll('.roulette-item');
+                const containerRect = rouletteList.getBoundingClientRect();
+                const containerCenter = containerRect.top + (containerRect.height / 2);
+                
+                let closestIndex = -1;
+                let minDistance = Infinity;
+
+                items.forEach((item, index) => {
+                    const itemRect = item.getBoundingClientRect();
+                    const itemCenter = itemRect.top + (itemRect.height / 2);
+                    const distance = Math.abs(containerCenter - itemCenter);
+                    
+                    if (distance < minDistance) {
+                        minDistance = distance;
+                        closestIndex = index;
+                    }
+                });
+
+                if (closestIndex !== lastSelectedIndex && closestIndex !== -1) {
+                    if (lastSelectedIndex !== -1) {
+                        items[lastSelectedIndex].classList.remove('selected');
+                        // Play tick only when changing selection while active
+                        if (isSelecting) playTick();
+                    }
+                    items[closestIndex].classList.add('selected');
+                    lastSelectedIndex = closestIndex;
+
+                    // Sync to guest dropdown seamlessly as user scrolls
+                    if (isSelecting) {
+                        const langText = items[closestIndex].querySelector('.lang-name').textContent;
+                        syncGuestLanguage(langText);
+                    }
+                }
+            };
+
+            // Initialize default center item quietly
+            updateRouletteSelection();
+            
+            // Listen for scroll events to update wheel
+            rouletteList.addEventListener('scroll', () => {
+                window.requestAnimationFrame(updateRouletteSelection);
+            });
+
+            // 6. Start Action (Orb Click)
+            const mainOrb = document.getElementById('mainOrb');
+
+            mainOrb.addEventListener('click', () => {
+                // If it was already listening, clicking orb resets back to roulette state
+                if (document.body.classList.contains('listening')) {
+                    document.body.classList.remove('listening');
+                    stopPipeline();
+                    return;
+                }
+
+                isSelecting = !isSelecting;
+                
+                if (isSelecting) {
+                    document.body.classList.add('active');
+                    
+                    initAudio();
+
+                    // Jump wheel slightly so it registers first selection and shows check icon
+                    setTimeout(() => {
+                        rouletteList.scrollBy({ top: 1, behavior: 'smooth' });
+                    }, 800);
+
+                } else {
+                    document.body.classList.remove('active');
+                }
+            });
+        });
+    </script>
+
+</body>
+</html>
